@@ -11,7 +11,7 @@ pipeline {
                 label "admin"
             }
             steps {
-                git branch: 'main', url: 'https://github.com/syedsarmas/racecar.git'
+                git branch: 'master', url: 'https://github.com/syedsarmas/racecar.git'
             }
         }
 
