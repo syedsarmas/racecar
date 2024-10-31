@@ -49,17 +49,18 @@ pipeline {
     }
 
     post {
-        always {
-            emailext (
-                to: 'chotusyedsarmas@gmail.com', // Replace with your email
-                subject: "Build ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${currentBuild.currentResult}",
-                body: """
-                    <p><b>Job Name:</b> ${env.JOB_NAME}</p>
-                    <p><b>Build Number:</b> ${env.BUILD_NUMBER}</p>
-                    <p><b>Build Status:</b> ${currentBuild.currentResult}</p>
-                    <p><b>Job URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-                """,
-                mimeType: 'text/html'
+    always {
+        echo "Attempting to send an email..."
+        emailext (
+            to: 'chotusyedsarmas@gmail.com', 
+            subject: "Build ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${currentBuild.currentResult}",
+            body: """
+                <p><b>Job Name:</b> ${env.JOB_NAME}</p>
+                <p><b>Build Number:</b> ${env.BUILD_NUMBER}</p>
+                <p><b>Build Status:</b> ${currentBuild.currentResult}</p>
+                <p><b>Job URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+            """,
+            mimeType: 'text/html'
             )
         }
     }
