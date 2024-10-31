@@ -20,7 +20,7 @@ pipeline {
                 label "admin"
             }
             steps {
-                sh "mvn clean install
+                sh "mvn clean install"
             }
         }
 
