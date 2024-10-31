@@ -5,6 +5,19 @@ pipeline {
         maven "maven" // Make sure "maven" matches the name in Global Tool Configuration
     }
 
+    // Define environment variables dynamically using parameters
+    environment {
+        APP_VERSION = "${params.APP_VERSION}" // Application version (passed dynamically)
+        TOMCAT_HOST = "${params.TOMCAT_HOST}" // Tomcat server IP (passed dynamically)
+        DEPLOY_PATH = "${params.DEPLOY_PATH}" // Deployment path (passed dynamically)
+    }
+
+    parameters {
+        string(name: 'APP_VERSION', defaultValue: '5.3.13', description: 'Application version')
+        choice(name: 'TOMCAT_HOST', choices: ['3.110.153.216', '3.110.153.217'], description: 'Tomcat server IP')
+        booleanParam(name: 'DEPLOY_PATH', defaultValue: true, description: 'Deploy to the default path /opt/apache-tomcat-9.0.65/webapps')
+    }
+
     stages {
         stage('Git Checkout') {
             agent {
@@ -12,6 +25,10 @@ pipeline {
             }
             steps {
                 git branch: 'master', url: 'https://github.com/syedsarmas/racecar.git'
+                script {
+                    BRANCH_NAME = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+                    echo "Checked out branch: ${BRANCH_NAME}"
+                }
             }
         }
 
@@ -21,6 +38,7 @@ pipeline {
             }
             steps {
                 sh "mvn clean install"
+                echo "Artifact built for version ${env.APP_VERSION}"
             }
         }
 
@@ -28,12 +46,23 @@ pipeline {
             agent {
                 label "admin"
             }
+            when {
+                allOf {
+                    expression { currentBuild.currentResult == 'SUCCESS' }
+                    expression { BRANCH_NAME == 'master' || BRANCH_NAME == 'dev' }
+                }
+            }
             steps {
-                sshagent(['tomcat']) {
-                    // Add the host to known_hosts
-                    sh "ssh-keyscan -H 3.110.153.216 >> ~/.ssh/known_hosts"
-                    // Run rsync
-                    sh "rsync -avz /var/lib/jenkins/workspace/assign/target/petclinic.war ubuntu@3.110.153.216:/opt/apache-tomcat-9.0.65/webapps"
+                script {
+                    // Declare the path variable here
+                    def path = params.DEPLOY_PATH ? '/opt/apache-tomcat-9.0.65/webapps' : '/some/other/path'
+                    sshagent(['tomcat']) {
+                        // Add the host to known_hosts
+                        sh "ssh-keyscan -H ${env.TOMCAT_HOST} >> ~/.ssh/known_hosts"
+                        // Run rsync to deploy the artifact
+                        sh "rsync -avz /var/lib/jenkins/workspace/assign/target/petclinic.war ubuntu@${env.TOMCAT_HOST}:${path}"
+                    }
+                    echo "Artifact deployed to ${env.TOMCAT_HOST}:${path}"
                 }
             }
         }
@@ -42,25 +71,33 @@ pipeline {
             agent {
                 label "tomcat"
             }
+            when {
+                expression { currentBuild.currentResult == 'SUCCESS' }
+            }
             steps {
                 sh "sudo startTomcat"
+                echo "Tomcat restarted on host ${env.TOMCAT_HOST}"
             }
         }
     }
 
     post {
-    always {
-        echo "Attempting to send an email..."
-        emailext (
-            to: 'chotusyedsarmas@gmail.com', 
-            subject: "Build ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${currentBuild.currentResult}",
-            body: """
-                <p><b>Job Name:</b> ${env.JOB_NAME}</p>
-                <p><b>Build Number:</b> ${env.BUILD_NUMBER}</p>
-                <p><b>Build Status:</b> ${currentBuild.currentResult}</p>
-                <p><b>Job URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-            """,
-            mimeType: 'text/html'
+        always {
+            echo "Attempting to send an email..."
+            emailext (
+                to: 'chotusyedsarmas@gmail.com', 
+                subject: "Build ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${currentBuild.currentResult}",
+                body: """
+                    <p><b>Job Name:</b> ${env.JOB_NAME}</p>
+                    <p><b>Build Number:</b> ${env.BUILD_NUMBER}</p>
+                    <p><b>Build Status:</b> ${currentBuild.currentResult}</p>
+                    <p><b>Version:</b> ${env.APP_VERSION}</p>
+                    <p><b>Branch Name:</b> ${BRANCH_NAME}</p>
+                    <p><b>Tomcat Host:</b> ${env.TOMCAT_HOST}</p>
+                    <p><b>Deploy Path:</b> ${params.DEPLOY_PATH ? '/opt/apache-tomcat-9.0.65/webapps' : '/some/other/path'}</p>
+                    <p><b>Job URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                """,
+                mimeType: 'text/html'
             )
         }
     }
