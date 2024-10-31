@@ -1,8 +1,10 @@
 pipeline {
     agent none
+
     tools {
-        maven "maven"
+        maven "maven" // Make sure "maven" matches the name in Global Tool Configuration
     }
+
     stages {
         stage('Git Checkout') {
             agent {
@@ -12,6 +14,7 @@ pipeline {
                 git branch: 'main', url: 'https://github.com/syedsarmas/racecar.git'
             }
         }
+
         stage('Build Artifact') {
             agent {
                 label "admin"
@@ -20,6 +23,7 @@ pipeline {
                 sh "mvn clean install"
             }
         }
+
         stage('Deploy Artifact') {
             agent {
                 label "admin"
@@ -33,7 +37,8 @@ pipeline {
                 }
             }
         }
-        stage('restart the tomcat') {
+
+        stage('Restart Tomcat') {
             agent {
                 label "tomcat"
             }
